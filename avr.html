@@ -98,13 +98,10 @@
 		<li>Z = Zorlim Stage Change</li>
 		<li>X = ScanLines On/Off</li>
       </ul>
+	  <h2>About</h2>
 	  <p>Arcade Volleyball by Rhett Anderson for C64, Amiga, MS-DOS.</p>
       <p>Copyright 1989 COMPUTE! Publications, Inc.</p>
       <p>ZORLIM Arcade Volleyball by Sami Lehtinen, sound by Olli Leino.</p>
-    </div>
-	
-    <div class="small">
-	  <div id="info"></div>
     </div>
   </div>
 </div>
@@ -704,7 +701,7 @@ class Game {
     this.ball.draw(ctx);
 	
 	// net + ground
-	if(!bgcount) {
+	if(!bgcount || true) {
 		this.drawNet();
 		this.drawGround();
 	}
