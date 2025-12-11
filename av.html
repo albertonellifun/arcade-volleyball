@@ -1,0 +1,1177 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, xxxmaximum-scale=1.0, xxxuser-scalable=no">
+  <link rel="shortcut icon" type="image/x-icon" href="favicon.ico"/>
+  <title>Arcade Volleyball</title>
+  <!-- TODO: remove -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.0.2/jquery.min.js"></script>
+  <style>
+	body {
+		background: #000000;
+		color: #ffffff;
+		font-family: monospace;
+		overflow-x: hidden;
+		overflow-y: hidden;
+	}
+
+	#container {
+		text-align:center;
+		width: 100%;
+	}
+
+	#inner-container {
+		display: block;
+		position: relative;
+		width: 640px;
+		height: 400px;
+		margin-left:auto;
+		margin-right:auto;
+	}
+
+	#container canvas {
+		display: inline;
+		position: absolute;
+		left: 0px;
+		top: 0px;
+	}
+
+	#help {
+		width: 220px;
+		padding: 20px;
+		display: inline;
+		position: absolute;
+		left: 640px;
+		top: 0px;
+		text-align: left;
+		font-size: small;
+	}
+
+	#help td {
+		padding-right: 1em;
+	}
+
+
+	#win, #lose, #pause {
+		background: url(sprites_alb.png)  no-repeat top left;
+	}
+
+	#viewport {
+		background: url(sprites.png)  no-repeat top left;
+		border: 2px solid #fff;
+	}
+	#viewport.z1{
+		background: url(zorlim-bg-1x.png)  no-repeat top left;
+		background-size: 640px 400px;
+	}
+	#viewport.z2{
+		background: url(zorlim-bg-2x.png)  no-repeat top left;
+		background-size: 640px 400px;
+	}
+	#viewport.z3{
+		background: url(zorlim-bg-3x.png)  no-repeat top left;
+		background-size: 640px 400px;
+	}
+	#viewport.z4{
+		background: url(zorlim-bg-4x.png)  no-repeat top left;
+		background-size: 640px 400px;
+	}
+	#viewport.z5{
+		background: url(zorlim-bg-5x.png)  no-repeat top left;
+		background-size: 640px 400px;
+	}
+
+	#win, #lose, #pause {
+		display: block;
+		position: absolute;
+	}
+
+	#win {
+		background-position: 0px -486px;
+		width: 244px;
+		height: 28px;
+		left: 192px;
+		top: 32px;
+	}
+
+	#lose {
+		background-position: 0px -456px;
+		width: 280px;
+		height: 28px;
+		left: 180px;
+		top: 32px;
+	}
+
+	#pause {
+		background-position: -282px -456px;
+		width: 152px;
+		height: 28px;
+		left: 244px;
+		top: 32px;
+	}
+
+	#viewport {
+		background-position: 0px 0px;
+	}
+
+	#scanlines-overlay {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		pointer-events: none;
+		background: repeating-linear-gradient(to right, transparent, transparent 0px, rgba(0, 0, 0, 0.33) 2px, transparent 4px);
+		background-size: 100% 4px;
+		opacity: 1;
+		display:block;/*none;*/
+		z-index: 10;
+	}
+  </style>
+</head>
+<body>
+  <div id="scanlines-overlay"></div>
+  <div id="container">
+    <div id="inner-container">
+      <canvas id="viewport" width="640" height="400"></canvas>
+      
+	  <div id="win" style="display: none"></div>
+      <div id="lose" style="display: none"></div>
+      <div id="pause" style="display: none"></div>
+ 	  <audio id="bgMusic" loop preload="auto">
+ 	    <source src="./zav.mp3" type="audio/mpeg">
+      </audio>
+	  
+      <div id="help">
+        <h2>HELP</h2>
+   	    <table>
+   	      <tr>
+   	        <td><input type="checkbox" id="p1" name="p1"/></td>
+   	        <td><label id="labelp1" for="p1">P1 HUMAN</label></td>
+   	      </tr>
+          <tr>
+   	 	    <td><input type="checkbox" id="p2" name="p2" checked="checked"/></td>
+   	 	    <td><label id="labelp2" for="p2">P2 HUMAN</label></td>	
+   	      </tr>
+   	      <tr><td></td><td></td></tr>
+   	      <tr>
+   	 	    <td>A/W/D</td>
+   	 	    <td>P1 movement</td>
+          </tr>
+   	      <tr>
+   	        <td>&#8592;/&#8593;/&#8594;</td>
+   	 	   <td>P2 movement</td>
+   	      </tr>
+   	      <tr><td></td><td></td></tr>
+             <tr>
+   	 	   <td>P</td>
+   	 	   <td>Pause/Play</td>
+             </tr>
+             <tr>
+   	 	   <td>R</td>
+   	 	   <td>Restart</td>
+             </tr>
+          <tr>
+   	 	    <td>S</td>
+   	 	    <td>Sound On/Off</td>
+          </tr>
+   	      <tr>
+   	 	    <td>M</td>
+   	 	    <td>Zorlim Music On/Off</td>
+          </tr>
+          <tr>
+   	 	    <td>Z</td>
+   	 	    <td>Zorlim Stage Change</td>
+          </tr>
+   	      <tr>
+   	 	    <td>X</td>
+   	 	    <td>ScanLines On/Off</td>
+          </tr>
+        </table>
+   	    <br/>
+        <h2>About</h2>
+        <p>Arcade Volleyball by Rhett Anderson for C64, Amiga, MS-DOS.</p>
+        <p>Copyright 1989 COMPUTE! Publications, Inc.</p>
+        <p>HTML / JavaScript porting by Iakov Davydov.</p>
+   	    <p>ZORLIM Arcade Volleyball by Sami Lehtinen, sound by Olli Leino.</p>
+      </div>
+    </div>
+  </div>
+
+
+<script>
+/* This source code mostly comes from the cover disk of the Fall 1989
+ * edition of Compute!'s Amiga Resource. HTML/JavaScript port by Iakov
+ * Davydov. Here is the original copyright notice:
+
+ * Arcade Volleyball
+ * Copyright 1989 COMPUTE! Publications, Inc.
+ * All rights reserved.
+
+ * Please excuse the unorthodox programming style presented in this code.
+ * With three separate programmers working on one game, things tend to 
+ * get a bit sloppy.
+*/
+
+
+var canvas;
+var ctx;
+var left;
+var right;
+var ball;
+
+//alb: coordinate sprite
+var spCoords = {
+	//alb: 1=fermo, 2=cammina, 3=salta
+    'left1': [0, 402, 60, 52],
+    'left2': [60, 402, 60, 52],
+    'left3': [120, 402, 60, 52],
+    //alb: 4 texture palle
+	'ball1': [180, 402, 50, 42],
+    'ball2': [230, 402, 50, 42],
+    'ball3': [280, 402, 50, 42],
+    'ball4': [330, 402, 50, 42],
+	//alb: 1=fermo, 2=cammina, 3=salta
+    'right1': [380, 402, 60, 52],
+    'right2': [440, 402, 60, 52],
+    'right3': [500, 402, 60, 52],
+	//alb: testo prima riga
+    '0': [560, 402, 16, 16],
+    '1': [576, 402, 16, 16],
+    '2': [592, 402, 16, 16],
+    '3': [608, 402, 16, 16],
+    '4': [624, 402, 16, 16],
+	//alb: testo seconda riga
+    '5': [560, 418, 16, 16],
+    '6': [576, 418, 16, 16],
+    '7': [592, 418, 16, 16],
+    '8': [608, 418, 16, 16],
+    '9': [624, 418, 16, 16],
+    //alb: testo terza riga *
+	'star': [560, 434, 16, 16],
+	'star0': [576, 434, 16, 16],
+	'star1': [592, 434, 16, 16]
+}
+
+//alb: suoni
+var snNames = ['hit', 'point', 'loss'];
+var sounds = {};
+var sound_enabled = false;
+//var ldCount = 0;//alb: rimosso
+var bgcount = 0;//alb: nuovo per gestione bg zorlim
+var musicStarted = false;//alb: nuovo per gestione musica zorlim
+var scanLinesEnabled = true;//alb: nuovo per gestione scanlines
+
+var intervalId;
+
+var rmode = false; // animation after loosing
+var rcnt; //last 20 cycles of round
+var winner; //who wins the point or serving
+var tvelx, tvely;
+
+/* Game values */
+var x = [0, 0]; // player coords
+var y = [0, 0];
+var px = [0, 0];
+var frame = [0, 0];
+var frameindex = [0, 0];
+var rebound = [0, 0];
+var score = [0, 0];
+var bx, by; //ball coords (320..18112) -> diventano (320>>6=5..282=18112>>6)
+var pbx, pby;
+var tbx, tby; //ball coords su schermo 
+var bvelx, bvely;
+var blogic, bframe;
+var bindex;
+var serve;
+var server;
+var servevel;
+var compserve = 0;
+var hits;
+var hitter;
+var starter;
+var gravity;
+var sstage;
+var bytop;
+var rnd;
+var endgame;
+var jflag;
+var polecol = [0,1,2,3,3,4,6,7,9,14];
+var jump = [-4,-4,-3,-3,-3,-3,-2,-2,-2,-2,-2,-1,-1,-1,-1,-1,-1, 0, 0,
+            0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4];
+var keymove = [{}, {}];
+var opts = ['C', 'H'];//alb: per default p1=computer, p2=human
+
+var olx;
+var oly;
+var orx;
+var ory;
+var obx;
+var oby;
+
+
+var oCoords = false;
+
+var mode;
+
+$( document ).ready(function() {
+
+    canvas = $("#viewport");
+    ctx = canvas[0].getContext("2d");
+
+    $(document).keydown(onKey);
+    $(document).keyup(clearKeys);
+
+	//alb: cambio human/computer via checkbox
+    /*$('#p1').change(function(){
+		opts[0] = $('#p1').prop('checked') ? 'H' : 'C';
+	});
+	$('#p2').change(function(){
+		opts[1] = $('#p2').prop('checked') ? 'H' : 'C';
+	});	
+	*/
+	document.getElementById('p1').addEventListener('change', function () {
+		opts[0] = this.checked ? 'H' : 'C';
+	});
+	document.getElementById('p2').addEventListener('change', function () {
+		opts[1] = this.checked ? 'H' : 'C';
+	});
+	
+    mode = 'play';
+
+    sprites = new Image();
+    sprites.src = 'sprites_alb.png';//alb: cambio sprites
+    sprites.onload = onLoad;
+
+});
+
+function doPlay() {
+	document.getElementById('lose').style.display = 'none';
+	document.getElementById('win').style.display = 'none';
+	document.getElementById('pause').style.display = 'none';
+
+	if (mode !== 'pause') initGame();
+
+	mode = 'play';
+	startLoop();
+}
+
+function loadSounds() {
+    if ($.isEmptyObject(sounds)) {
+		for (i = 0; i < snNames.length; i++) {
+			s = snNames[i];
+			sounds[s] = new Audio();
+			sounds[s].src = s + '.wav'; 
+		}
+    }
+}
+
+function onLoad() {
+    initGame();
+    startLoop();
+}
+
+function clearKeys(e) {
+    switch (e.keyCode) {
+		//alb: player 0
+		case 65: //a
+			keymove[0].left = 0;
+		break;
+		case 68: // d
+			keymove[0].right = 0;
+		break;
+		case 87: // w
+			keymove[0].up = 0;
+		break;
+		
+		//alb: player 1
+		case 37: // left
+			keymove[1].left = 0;
+		break;
+		case 39: // right
+			keymove[1].right = 0;
+		break;
+		case 38: // top
+			keymove[1].up = 0;
+		break;
+		
+    }
+}
+
+function onKey(e) {
+    switch (e.keyCode) {
+		//alb: player 0
+		case 65: //a
+			keymove[0].left = -2;
+		break;
+		case 68: // d
+			keymove[0].right = 2;
+		break;
+		case 87: // w
+			keymove[0].up = 1;
+		break;
+		
+		//alb: player 1
+		case 37: // left
+			keymove[1].left = -2;
+		break;
+		case 39: // right
+			keymove[1].right = 2;
+		break;
+		case 38: // top
+			keymove[1].up = 1;
+		break;
+		
+		//pause
+		case 80: // p
+			keymove[0].right = 0;
+			keymove[0].left = 0;
+			keymove[0].up = 0;
+			keymove[1].right = 0;
+			keymove[1].left = 0;
+			keymove[1].up = 0;
+			
+			if (mode != 'play') {
+				doPlay();
+			} else {
+				stopLoop();
+				mode = 'pause';
+				//$('#pause').show();
+				//$('#play').show();
+				document.getElementById('pause').style.display = 'block';
+				document.getElementById('play').style.display = 'block';
+			}
+		break;
+		
+		case 82: // r = reset
+			if (mode == 'play') initGame();
+		break;
+		
+		case 83: // s = sound toggle
+			if (!sound_enabled) loadSounds();
+			sound_enabled = !sound_enabled;
+		break;
+		
+		case 90: // z = background zorlim
+			$('#viewport').removeClass('z1').removeClass('z2').removeClass('z3').removeClass('z4').removeClass('z5');
+			switch(bgcount){
+				case 0: $('#viewport').addClass('z1'); bgcount++; break;
+				case 1: $('#viewport').addClass('z2'); bgcount++; break;
+				case 2: $('#viewport').addClass('z3'); bgcount++; break;
+				case 3: $('#viewport').addClass('z4'); bgcount++; break;
+				case 4: $('#viewport').addClass('z5'); bgcount++; break;
+				case 5: bgcount = 0; break;
+			}
+		break;
+		
+		case 49:// 1 = p1 human/computer
+			//$('#p1').click();
+			document.getElementById('p1').click();
+		break;
+		
+		case 50:// 2 = p2 human/computer
+			//$('#p2').click();
+			document.getElementById('p2').click();
+		break;
+		
+		case 77: // m = music toggle
+			if(musicStarted) stopMusic();
+			else startMusic();
+		break;
+		
+		case 88: // x = scanlines toggle
+			scanLinesEnabled = !scanLinesEnabled;
+			if (scanLinesEnabled) document.getElementById('scanlines-overlay').style.display = 'block';
+			else document.getElementById('scanlines-overlay').style.display = 'none';
+		break;
+    }
+}
+
+//alb: aggiunta gestione musica
+function stopMusic() {
+	if (!musicStarted) return;
+	const music = document.getElementById("bgMusic");
+	if (music) { music.pause(); musicStarted = false; }
+}
+
+//alb: aggiunta gestione musica
+function startMusic(fromBeginning = true) {
+	if (musicStarted) return;
+	const music = document.getElementById("bgMusic");
+	if (music) {
+	  music.volume = 0.5;
+	  if (fromBeginning) music.currentTime = 0;
+	  music.play().catch((e) => { console.warn("🔇 bgMusic bloccata:", e); });
+	  musicStarted = true;
+	}
+}
+
+
+
+function GetPos() {
+    var i, tx, velx, bnd;
+
+    // Ci sono due player (i = 0 e 1)
+    for (i = 0; i < 2; i++) {
+
+        // Se il personaggio sta "saltando" verso l'alto (keymove[i].up)
+        // e non ha ancora iniziato un'animazione di salto (frameindex == -1)
+        // si imposta l'inizio dell'animazione.
+        if (keymove[i].up && frameindex[i] == -1)
+            frameindex[i] = 0;
+
+        // Calcolo temporaneo della nuova posizione X
+        velx = keymove[i].left + keymove[i].right;  // velocità orizzontale data dai tasti premuti
+        tx = x[i] + velx;
+
+        // Calcolo del limite orizzontale per il giocatore i-esimo
+        // Ogni player ha un "range" di movimento: 3 + i*155
+        bnd = 3 + i * 155;
+
+        // Limiti orizzontali del personaggio
+        if (velx > 0) {                     // Movimento verso destra
+            if (tx < bnd + 119)
+                x[i] = tx;                 // Move normally
+            else
+                x[i] = bnd + 119;          // Clamp to right boundary
+        } else {                            // Movimento verso sinistra o fermo
+            if (tx > bnd)
+                x[i] = tx;
+            else
+                x[i] = bnd;                // Clamp to left boundary
+        }
+
+        // frameindex == -2 significa "atterrato dopo un salto"
+        if (frameindex[i] == -2) {
+            y[i] = 173;                    // reset Y (terra?)
+            frame[i] = 0;                  // frame idle
+            frameindex[i] = -1;            // pronto
+        }
+
+        // frameindex == -1 → non stiamo saltando, animazione di camminata/idle
+        if (frameindex[i] == -1) {
+
+            if (velx != 0) {               // Se ci stiamo muovendo
+                // Cambia frame se ci siamo mossi abbastanza
+                if (Math.abs(px[i] - x[i]) > 4) {
+                    frame[i] ^= 1;         // alterna frame 0/1 (camminata)
+                    px[i] = x[i];
+                }
+            } else {
+                frame[i] = 0;              // fermo → frame idle
+            }
+
+        } else {
+            // Siamo in salto: frame 2 o 3
+            frame[i] = 2 + (frameindex[i] > 18);
+
+            // A metà salto si dà una spinta verso l’alto
+            if (frameindex[i] == 19)
+                y[i] -= 4;
+
+            // Movimento verticale dato dalla curva jump[]
+            y[i] += jump[frameindex[i]++];
+
+            // Fine del salto dopo 38 frame
+            if (frameindex[i] > 37)
+                frameindex[i] = -2;        // stato "aterrato"
+        }
+    }
+}
+
+
+function setwinner() {
+	if (hits>2) winner=1-hitter;
+	else winner=tbx<150?1:0;
+
+	tvely=Math.abs(bvely)>>3;
+	tvelx=Math.abs(bvelx)>>3;
+}
+
+function resetpt() {
+    keymove[0].up=0;
+    keymove[1].up=0;
+    GetPos();
+    if (Math.abs(bvelx)>tvelx) {
+		if (bvelx<0) bvelx=-tvelx;
+		else bvelx=tvelx;
+    }
+	if (Math.abs(bvely)>tvely) {
+		if (bvely<0) bvely=-tvely;
+		else bvely=tvely;
+	}
+    docollisions();
+    moveball();
+    putshapes();
+}
+
+function calcscore() {
+
+    if (winner==server || 1) {//alb: regole moderne
+		server=winner;//alb: regole moderne
+		
+		if (sound_enabled) sounds.point.play()
+		score[winner]++;
+	
+	    if (score[winner]>24 && score[winner]-score[1-winner]>1) {//alb: regole moderne
+		//if (score[winner]>14 && score[winner]-score[1-winner]>1) {
+			if (mode == 'play') {
+				if (winner == 0) {
+					mode = 'win';
+					$('#win').show();
+				} else {
+					mode = 'lose';
+					$('#lose').show();
+				}
+				$('#play').show();
+				stopLoop();
+			} else {
+				initGame();
+			}
+		}
+    }
+    else {
+		if (sound_enabled) sounds.loss.play();
+		server=winner;
+		putscore();
+    }
+    putscore();
+    bx=(tbx=pbx=(64+winner*165))<<6;
+	by=(tby=pby=135)<<6;
+    bframe=blogic=bvelx=bvely=hits=rebound[0]=rebound[1]=0;
+	bindex=6;
+    serve=servevel=1;
+	hitter=2;
+    compserve=Math.abs(rnd)%5;
+	//alb: regole moderne
+	if (score[server]==24) compserve=5;
+    //if (score[server]==14) compserve=5;
+    sstage=0;
+}
+
+
+
+function destination(pl, destx, tol) {
+    var xp;
+
+    xp=x[pl];
+    if (Math.abs(xp-destx)<tol) {
+		keymove[pl].left=0;
+		keymove[pl].right=0;
+		return(1);
+    }
+    if (xp<destx) {
+		keymove[pl].left=0;
+		keymove[pl].right=2;
+    }
+    else {
+		keymove[pl].left=-2;
+		keymove[pl].right=0;
+    }
+    return(0);
+}
+
+function moveball()
+{
+    var rbvelx, rbvely, hitfloor;
+
+    // Copia le velocità globali in variabili locali
+    // (probabilmente per modificarle senza toccare subito i valori globali)
+    rbvelx = bvelx;
+    rbvely = bvely;
+
+    // Limita la velocità massima della palla (clamping)
+    if (rbvelx > 319)  rbvelx = 319;
+    if (rbvelx < -319) rbvelx = -319;
+    if (rbvely > 319)  rbvely = 319;
+    if (rbvely < -319) rbvely = -319;
+
+    // Salva la posizione precedente (in coordinate di gioco, non pixel)
+    pbx = tbx;
+    pby = tby;
+
+    // Aggiorna la posizione in coordinate fisiche (moltiplicate ×64)
+    bx += rbvelx;
+    by += rbvely;
+
+    // --- COLLISIONE COL BORDO SINISTRO DELLO SCHERMO ---
+    // Il limite sinistro è bx = 320 (cioè ~5 pixel nella versione scalata)
+    if (bx < 320) {
+		bx = 320;            // Ricolloca esattamente sul bordo
+        rbvelx = -rbvelx;    // Rimbalzo orizzontale
+        rbvelx -= rbvelx >> 4;  // Smorzamento (riduce velocità del 1/16)
+        rbvely -= rbvely >> 4;  // Smorzamento anche verticale
+
+        // Se chi ha tirato era il giocatore 1,
+        // la palla che tocca il muro "perde" l’attribuzione dell’hit.
+        if (hitter == 1) {
+            hitter = 2;      // Nessuno / stato neutro
+            hits = 0;
+        }
+    }
+
+    // --- COLLISIONE COL BORDO DESTRO DELLO SCHERMO ---
+    // Il limite destro è bx = 18112 (≈ tbx=282)
+    if (bx > 18112) {
+        bx = 18112;          // Fissa la posizione al bordo
+        rbvelx = -rbvelx;    // Rimbalzo orizzontale
+        rbvelx -= rbvelx >> 4;  // Smorzamenti
+        rbvely -= rbvely >> 4;
+
+        // Se il giocatore 0 aveva colpito la palla,
+        // toccare il muro resetta la "serie" di colpi.
+        if (hitter == 0) {
+            hitter = 2;
+            hits = 0;
+        }
+    }
+
+    // --- COLLISIONE COL SOFFITTO ---
+    // Il limite superiore è by = 832 (≈ tby=13)
+    if (by < 832) {
+        by = 832;            // Ricolloca sul soffitto
+        rbvely = -rbvely;    // Inversione verticale (rimbalzo)
+        rbvelx -= rbvelx >> 4;
+        rbvely -= rbvely >> 4;
+    }
+
+    // --- COLLISIONE COL PAVIMENTO ---
+    // Il pavimento è by = 11392 (≈ tby=178)
+    if (by > 11392) {
+        by = 11392;          // Fissa la posizione al terreno
+        rbvely = -rbvely;    // Rimbalzo verso l'alto
+        hitfloor = 0;        // Indica che ha toccato terra
+    }
+    else hitfloor = 1;       // Indica che NON ha toccato terra
+
+    // --- GRAVITÀ ---
+    // Aggiunge accelerazione verticale verso il basso
+    // (se rbvely è negativa, resta negativa ma cresce verso 0)
+    rbvely += 1;
+
+    // Converte posizioni fisiche in coordinate schermo (pixel)
+    // (Divide per 64 tramite shift a destra)
+    tbx = bx >> 6;
+    tby = by >> 6;
+
+    // Salva le velocità aggiornate nelle variabili globali
+    bvelx = rbvelx;
+    bvely = rbvely;
+
+    // Restituisce 0 se ha toccato terra, 1 altrimenti
+    return hitfloor;
+}
+
+
+function docollisions() {
+    var i, dx, dy, dist, rndoff, avy, jif, per;
+
+    // --- Player collisions (i = 0 and 1) ---
+    for (i = 0; i < 2; i++) {
+        // Horizontal/vertical deltas between ball and player
+        dx = tbx - x[i] - i * 7;
+        dy = (tby - y[i]) >> 1;
+
+        // Cheap distance approximation
+        dist = (dx >> 2) * dx + dy * dy;
+
+        // Collision threshold
+        if (dist < 110) {
+            rndoff = 8 - (rnd & 15); // Random tweak
+
+            // Vertical bounce
+            if (frameindex[i] > -1)
+                bvely = -Math.abs(bvely) + (jump[frameindex[i]] << (3 << servevel));
+            else
+                bvely = -Math.abs(bvely);
+
+            // Add randomness
+            bvely += rndoff;
+
+            // Horizontal bounce influenced by dx + input
+            bvelx += dx * Math.abs(dx)
+                + (keymove[i].right + keymove[i].left << (4 + servevel))
+                + rndoff;
+
+            if (!rebound[i]) {
+                // New rebound event
+                avy = Math.abs(320 - Math.abs(bvely));
+                per = 300 + avy;
+                jif = per >> 5;
+
+                if (sound_enabled) sounds.hit.play();
+
+                bytop = 200;
+                serve = 0;
+                rebound[i] = 1;
+
+                // Track hitter
+                if (hitter !== i) {
+                    hitter = i;
+                    hits = 0;
+                } else {
+                    hits++;
+                }
+            }
+
+        } else if (rebound[i]) {
+            // Player is no longer colliding
+            rebound[i] = servevel = 0;
+        }
+    }
+
+    // --- Net / pole collision handling ---
+    i = 1;
+
+    if (tby > 91) {
+        // Left side of net
+        if (pbx < 128 && tbx > 127) {
+            bvelx = -Math.abs(bvelx) >> 1;
+            bx = 127 * 64;
+            i = 0;
+        }
+        // Right side of net
+        else if (pbx > 159 && tbx < 160) {
+            bvelx = Math.abs(bvelx) >> 1;
+            bx = 160 * 64;
+            i = 0;
+        }
+    }
+
+    // Middle of the net and top of net collisions
+    if (i && tby > 81 && tbx > 127 && tbx < 160) {
+        if (tby > 91) {
+            // Bounce off net edges
+            if (tbx < 148) bvelx = -Math.abs(bvelx);
+            else bvelx = Math.abs(bvelx);
+        }
+        else if (
+            (tbx > 147 && 161 - tbx >= polecol[91 - tby]) ||
+            (tbx < 148 && tbx - 133 >= polecol[91 - tby])
+        ) {
+            // Top of net collision
+            if (bvely > 0) {
+                dx = tbx - 145;
+                if (dx < -5) bvelx = -Math.abs(bvelx);
+                if (dx > 5)  bvelx = Math.abs(bvelx);
+                bvely = -Math.abs(bvely);
+            }
+
+            // Clamp extreme speeds
+            if (Math.abs(bvelx) > 32) bvelx >>= 1;
+            if (Math.abs(bvely) > 32) bvely >>= 1;
+        }
+    }
+}
+
+
+
+function computer0() {
+    var ystep, destx, dx, rndoff, dest;
+
+    keymove[0].up=0;
+    if (tby<bytop) bytop=tby;
+    rndoff=5-rnd%10;
+    if (serve && ((server&1)==0)) {
+		switch (compserve) {
+			case 0: dest=destination(0,55,2);break;
+			case 1: dest=destination(0,84,2);break;
+			case 2: dest=destination(0,80,2);break;
+			case 3: if (sstage==0) {
+					if (dest=destination(0,44,2)) sstage=1;
+				}
+					else {
+				destination(0,58,2);
+				dest=1;
+					}
+					break;
+			case 4 : if (sstage==0) {
+					if (dest=destination(0,90,2)) sstage=1;
+				}
+					else {
+				destination(0,58,2);
+				dest=1;
+					}
+					break;
+			case 5 : if (sstage==0) {
+					if (destination(0,3,2)) sstage=1;
+					dest=0;
+				}
+					else {
+				destination(0,8+sstage++,1);
+				dest=1;
+					}
+					break;
+		}
+		keymove[0].up=dest;
+    }
+    else if (bvely>0 && tbx<140) {
+	    if (bvely>>6==0) ystep=0;
+	    else ystep=(140-tby)/(bvely>>6);
+		
+	    if (ystep<1 || (bvelx>>6)==0) destx=tbx;
+	    else destx=tbx+(bvelx>>6)*ystep-4;
+		
+	    dx=x[0]-tbx;
+	    
+		if (Math.abs(bvelx)<128 && bytop<75) {
+			if ((tby<158)^(bvelx<0)) destination(0,tbx-15,3);
+			else destination(0,tbx+15,3);
+	    }
+	    else {
+			if (tby>130) {
+				if (Math.abs(dx)>6 && Math.abs(bvelx)<1024) destination(0,tbx-(x[0]-60>>3),3);
+				else {
+					destination(0,tbx+rndoff+(x[0]-60>>3),10);
+					keymove[0].up=x[0]<105 && (hitter!=0 || hits<2);
+				}
+			}
+			else {
+				if (destx<3) destx=6-destx;
+				if (destx>123) destx=246-destx;
+				destination(0,destx+rndoff,3);
+			}
+	    }
+	}
+    else destination(0,56,8);
+}
+
+function computer1() {
+    var ystep, destx, dx, rndoff, dest;
+
+    keymove[1].up=0;
+    if (tby<bytop) bytop=tby;
+	
+    rndoff=5-rnd%10;
+	
+    if (serve && ((server&1)==1)) {
+		switch (compserve) {
+			case 0: dest=destination(1,232,2);break;
+			case 1: dest=destination(1,202,2);break;
+			case 2: dest=destination(1,208,2);break;
+			case 3: if (sstage==0) {
+					if (dest=destination(1,250,2)) sstage=1;
+				}
+					else {
+				destination(1,220,2);
+				dest=1;
+					}
+					break;
+			case 4 : if (sstage==0) {
+					if (dest=destination(1,190,2)) sstage=1;
+				}
+					else {
+				destination(1,230,2);
+				dest=1;
+					}
+					break;
+			case 5 : if (sstage==0) {
+					if (destination(1,277,2)) sstage=1;
+					dest=0;
+				}
+					else {
+				destination(1,272-sstage++,1);
+				dest=1;
+					}
+					break;
+		}
+		keymove[1].up=dest;
+    }
+    else if (bvely>0 && tbx>125) {
+	    if (bvely>>6==0) ystep=0;
+	    else ystep=(140-tby)/(bvely>>6);
+	    if (ystep<1 || (bvelx>>6)==0) destx=tbx;
+	    else destx=tbx+(bvelx>>6)*ystep-4;
+	    
+		dx=x[1]-tbx;
+	    
+		if (Math.abs(bvelx)<128 && bytop<75) {
+			if ((tby<158)^(bvelx<0)) destination(1,tbx+15,3);
+			else destination(1,tbx-15,3);
+	    }
+	    else {
+			if (tby>130) {
+				if (Math.abs(dx)>6 && Math.abs(bvelx)<1024) destination(1,tbx+(x[1]-218>>3),3);
+				else {
+					destination(1,tbx-rndoff-(x[1]-218>>3),10);
+					keymove[1].up=x[1]>175 && (hitter!=1 || hits<2);
+				}
+			}
+			else {
+				if (destx<158) destx=316-destx;
+				if (destx>277) destx=554-destx;
+				destination(1,destx-rndoff,3);
+			}
+	    }
+	}
+    else destination(1,211,8);
+}
+
+function initGame() {
+    var i;
+    rnd = 0;
+    starter = 1;//alb: chi inizia
+    hits = 0;
+    bframe = 0;
+    blogic = 0;
+    bvelx = 0;//alb: velocita palla x
+    bvely = 0;//alb: velocita palla y
+    tby = 0;
+    bindex = 6;
+    bytop = 200;
+    x[0] = 64;//player 1 x
+    x[1] = 226;//player 2 x
+    tbx = 400;
+    for (i = 0;i < 2;i++) {
+		px[i] = x[i];
+		y[i] = 173;//player y
+		frameindex[i] = -1;
+		rebound[i] = 0;
+		score[i] = 0;//punteggi
+		keymove[i].right = 0;
+		keymove[i].left = 0;
+		keymove[i].up = 0;
+		frame[i] = 0;
+    }
+    putshapes();
+
+    tbx = 64 + starter * 165;
+    pbx = tbx;
+    bx = tbx << 6;
+    tby = 135
+    pby = 135
+    by = tby << 6; 
+
+    server=2+starter;
+    hitter=2;
+    serve=servevel=1;
+
+    rmode = false;
+
+    putscore();
+}
+
+function startLoop() {
+    intervalId = setInterval(game, 20);//alb: aggiorna ogni 20msec
+}
+
+function stopLoop() {
+    clearInterval(intervalId);
+}
+
+function putscore() {
+    var y = 6;//alb: piu in alto
+	//var y = 8;
+    var vs = "" + score[0];
+    var startx = 278;//alb: centrato
+	//var startx = 64;
+    if (vs.length < 2) vs = "0" + vs;
+    ctx.clearRect(startx, y, 16*3, 16);
+    draw(vs[0], startx, y);
+    startx += 16;
+    draw(vs[1], startx, y);
+    
+    vs = "" + score[1];
+    if (vs.length < 2) vs = "0" + vs;
+	startx = 330;//alb: centrato
+    //startx = 528;
+    ctx.clearRect(startx, y, 16*3, 16);
+    draw(vs[0], startx, y);
+    startx += 16;
+    draw(vs[1], startx, y);
+    
+	//alb: server al centro con < o >
+	ctx.clearRect(310, y, 20, 16);
+	if (server == 0) {startx = 310; draw('star0', startx, y); }
+    if (server == 1) {startx = 314; draw('star1', startx, y); }
+}
+
+function draw(sn, x, y) {
+    ctx.drawImage(
+		sprites, 
+		spCoords[sn][0], spCoords[sn][1], 
+		spCoords[sn][2], spCoords[sn][3],
+		x, y,
+		spCoords[sn][2], spCoords[sn][3]);
+}
+
+function putshapes() {
+	var delta = 0;
+    var sprite;
+    if (oCoords) {
+		ctx.clearRect(obx - 1, oby - 1, spCoords.ball1[2] + 2, spCoords.ball1[3] + 2);
+		ctx.clearRect(olx - 1, oly - 1, spCoords.left1[2] + 2, spCoords.left1[3] + 2);
+		ctx.clearRect(orx - 1, ory - 1, spCoords.right1[2] + 2, spCoords.right1[3] + 2);
+    }
+	
+	//alb: cambio sprite in base alla posizione della palla
+    sprite = "ball" + (Math.floor(tbx / 16) % 4 + 1);
+    draw(sprite, tbx * 2 + delta, tby * 2);
+    obx = tbx * 2 + delta;
+    oby = tby * 2;
+
+	//alb: cambio sprite in base alla posizione del player di sinistra
+    if (y[0] < 173) sprite = 'left3';
+	else {
+		if (Math.floor(x[0] / 8) % 2) sprite = 'left1';
+		else sprite = 'left2';
+    }
+    draw(sprite, x[0] * 2 + delta, y[0] * 2);
+    olx = x[0] * 2 + delta;
+    oly = y[0] * 2;
+
+	//alb: cambio sprite in base alla posizione del player di destra
+    if (y[1] < 173) sprite = 'right3';
+    else {
+		if (Math.floor(x[1] / 8) % 2) sprite = 'right1';
+		else sprite = 'right2';
+    }
+    draw(sprite, x[1] * 2 + delta, y[1] * 2);
+    orx = x[1] * 2 + delta;
+    ory = y[1] * 2;
+
+    oCoords = true;
+}
+
+function game() {
+    if (mode == 'play') {
+		rnd= (rnd*5+1) % 32767;
+
+		//alb: mossa computer per player 1 e 2
+		if (opts[0] == 'C') computer0();
+		if (opts[1] == 'C') computer1();
+		
+		if (rmode) {
+			if (rcnt-->0 || frameindex[0]!=-1 || frameindex[1]!=-1) resetpt();
+			else {
+			  rmode = false;
+			  calcscore();
+			}
+			return;
+		}
+
+		GetPos();
+
+		if (serve) {
+			docollisions();
+			putshapes();
+			air=1;
+		}
+		else {
+			if (air) {
+				docollisions();
+				air=moveball();
+				putshapes();
+			}
+		}
+		if (!air || hits>2) {
+			setwinner();
+			rmode = true;
+			rcnt = 20;
+		}
+    }
+}
+</script>
+</body>
+</html>
