@@ -1,0 +1,870 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, xxxmaximum-scale=1.0, xxxuser-scalable=no">
+<link rel="shortcut icon" type="image/x-icon" href="favicon.ico"/>
+<title>Arcade Volleyball Rewrite</title>
+<style>
+  html,body{
+	height:100%;
+	margin:0;
+	background:#333;
+	color:#eee;
+	font-family: monospace;
+    font-size: 18px;
+  }
+  .wrap{
+    display:flex;
+	align-items:flex-start;
+	gap:16px;
+	padding:16px;
+  }
+  canvas{
+    background:#3a6ea5;
+	border-radius:8px;
+  }
+  .ui{
+    width:300px;
+  }
+  .ui h1{
+    margin:0 0 8px 0;
+	font-size:18px;
+  }
+  .small{
+    font-size:13px;
+	color:#ddd;
+	margin-top:8px;
+  }
+  label{
+    display:block;
+	margin: 0;
+  }
+  input[type=checkbox]{
+    margin-right:6px;
+  }
+  #game.z1{
+  	background: url(zorlim-bg-1x.png)  no-repeat top left;
+  	background-size: 640px 400px;
+  }
+  #game.z2{
+  	background: url(zorlim-bg-2x.png)  no-repeat top left;
+  	background-size: 640px 400px;
+  }
+  #game.z3{
+  	background: url(zorlim-bg-3x.png)  no-repeat top left;
+  	background-size: 640px 400px;
+  }
+  #game.z4{
+  	background: url(zorlim-bg-4x.png)  no-repeat top left;
+  	background-size: 640px 400px;
+  }
+  #game.z5{
+  	background: url(zorlim-bg-5x.png)  no-repeat top left;
+  	background-size: 640px 400px;
+  }
+  #scanlines-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(to right, transparent, transparent 0px, rgba(0, 0, 0, 0.33) 2px, transparent 4px);
+    background-size: 100% 4px;
+    opacity: 1;
+    display:block;/*none;*/
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+<div id="scanlines-overlay"></div>
+<div class="wrap">
+  <canvas id="game" width="640" height="400" tabindex="0"></canvas>
+  <div class="ui">
+    <h1>ARCADE VOLLEYBALL REWRITE</h1>
+    <div class="small">
+      <strong>HELP</strong>
+      <ul>
+		<li><label><input type="checkbox" id="aiLeft"> P1 Computer</label></li>
+		<li><label><input type="checkbox" id="aiRight" checked> P2 Computer</label></li>
+        <li>A/W/D = P1 movement</li>
+        <li>←/↑/→ = P2 movement</li>
+		<li>P = Pause/Play</li>
+		<li>R = Restart</li>
+		<li>S = Sound On/Off</li>
+		<li>M = Zorlim Music On/Off</li>
+		<li>Z = Zorlim Stage Change</li>
+		<li>X = ScanLines On/Off</li>
+      </ul>
+	  <p>Arcade Volleyball by Rhett Anderson for C64, Amiga, MS-DOS.</p>
+      <p>Copyright 1989 COMPUTE! Publications, Inc.</p>
+      <p>ZORLIM Arcade Volleyball by Sami Lehtinen, sound by Olli Leino.</p>
+    </div>
+	
+    <div class="small">
+	  <div id="info"></div>
+    </div>
+  </div>
+</div>
+<audio id="bgMusic" loop preload="auto">
+  <source src="./zav.mp3" type="audio/mpeg">
+</audio>
+<audio id="fischio1" preload="auto">
+  <source src="./fischio1.mp3" type="audio/mpeg">
+</audio>
+<audio id="fischio2" preload="auto">
+  <source src="./fischio2.mp3" type="audio/mpeg">
+</audio>
+
+<script>
+const GRAVITY_BALL = 100;//la palla deve galleggiare come nel gioco originale
+const GRAVITY_PLAYERS = 1500;//i players invece precipitano come sassi
+const MAX_SPEED_BALL = 700;//maxv palla
+const MAX_SPEED_PLAYERS = 200;//maxv players
+const PLAYERS_ACCEL_Y = 400;//quanta spinta da sul salto
+const PLAYERS_ACCEL_X = 800;//quanto e' veloce orizzontalmente
+const PLAYERS_FRICTION_X = 0.8;//quanto scivola
+const NET_HEIGHT = 168;//quanto è alta la rete
+const NET_WIDTH = 10;//quanto è larga la rete
+const GROUND_HEIGHT = 14;//quanto è alto il terreno
+const MAX_HIT_COUNT = 3;//quanti tocchi per player (3 o infiniti==libidine)
+const MAX_POINTS = 25;//secondo me sono troppi
+
+let bgcount = 0;//background corrente
+let scanLinesEnabled = true;//i'm loving it!
+let musicStarted = false;//gestione musica zorlim
+let isMute = true;//shhhh
+
+class Input {
+  constructor() {
+    this.keys = new Set();
+    this.bind();
+  }
+  bind() {
+    window.addEventListener('keydown', e => { this.keys.add(e.code); });
+    window.addEventListener('keyup', e => { this.keys.delete(e.code); });
+  }
+  isDown(code) { return this.keys.has(code); }
+}
+
+class Player {
+  constructor(x, color, side){
+    this.x = x; 
+	this.y = 0; 
+	this.w = 60; 
+	this.h = 60;
+    this.color = color; 
+	this.vx = 0; 
+	this.vy = 0;
+    this.onGround = false; 
+	this.score = 0; 
+	this.facing = 1;
+	this.side = side;
+	this.hitCount = 0;
+  }
+  update(dt, input, controls){
+    // horizontal
+    let move = 0;
+    if (controls) {
+      if (input.isDown(controls.left)) move -= 1;
+      if (input.isDown(controls.right)) move += 1;
+      //if (move !== 0) 
+		this.facing = move;
+    }
+    this.vx += move * PLAYERS_ACCEL_X * dt;
+    this.vx = Math.max(-MAX_SPEED_PLAYERS, Math.min(MAX_SPEED_PLAYERS, this.vx));
+    if (move === 0) this.vx *= Math.pow(PLAYERS_FRICTION_X, dt * 60);
+
+    // jump
+    if (controls && input.isDown(controls.jump) && this.onGround) {
+      this.vy = -PLAYERS_ACCEL_Y;
+	  this.onGround = false;
+    }
+
+    // integrate
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+  }
+  draw(ctx){
+	let delta = 5;//non centrato causa nasone
+	let isLeft = this.facing === 1 || this.facing === 0 && this.side === 0;
+	
+	const bodyGradient = ctx.createRadialGradient(
+		(isLeft ? delta * 2 : -delta * 2),// x centro interno
+		-this.h/2 - delta,                // y centro interno
+		0,                                // raggio interno
+		(isLeft ? -delta : delta), 
+		-this.h/2,
+		this.w/2                          // raggio esterno
+	);
+	bodyGradient.addColorStop(0, '#ff0');    // centro giallastro
+	bodyGradient.addColorStop(1, this.color);// bordo colore
+  	
+    ctx.save();
+    ctx.fillStyle = bodyGradient;//this.color; 
+	ctx.translate(this.x, this.y);
+	
+	ctx.strokeStyle = '#000';
+	ctx.beginPath();
+	ctx.ellipse(isLeft ? -delta : delta , -this.h/2, 4*this.w/9, this.h/2, 0, 0, Math.PI * 2);//corpo
+	if(this.facing != 0) {
+	ctx.ellipse(isLeft ? 5*this.w/9 - delta : -5*this.w/9 + delta, -this.h/2, this.w/6, this.h/4, 0, 0, Math.PI * 2);//nasone laterale
+	}
+	ctx.closePath();
+	ctx.stroke();
+	ctx.fill();
+	
+	ctx.fillStyle = '#fff';
+	ctx.strokeStyle = '#000';
+	ctx.beginPath();
+	ctx.ellipse(isLeft ? this.w/3 - delta : -this.w/3 + delta, -2*this.h/3, this.w/6, this.h/6, 0, 0, Math.PI * 2);//occhione bianco
+	ctx.closePath();
+	ctx.fill();
+	ctx.stroke();
+	
+	ctx.fillStyle = '#000';
+	ctx.beginPath();
+	ctx.ellipse(isLeft ? 2*this.w/5 - delta : -2*this.w/5 + delta, -2*this.h/3, this.w/12, this.h/9, 0, 0, Math.PI * 2);//pupilla
+	ctx.closePath();
+	ctx.fill();
+	
+	//disegna il player da davanti (altro occhio + nasone)
+	if(this.facing===0) {
+	  ctx.fillStyle = '#fff';
+	  ctx.strokeStyle = '#000';
+	  ctx.beginPath();
+	  ctx.ellipse(!isLeft ? this.w/3 - delta : -this.w/3 + delta, -2*this.h/3, this.w/6, this.h/6, 0, 0, Math.PI * 2);//occhione bianco
+	  ctx.closePath();
+	  ctx.fill();
+	  ctx.stroke();
+	  ctx.fillStyle = '#000';
+	  ctx.beginPath();
+	  ctx.ellipse(!isLeft ? 1.35*this.w/5 - delta : -1.35*this.w/5 + delta, -2*this.h/3, this.w/12, this.h/9, 0, 0, Math.PI * 2);//pupilla
+	  ctx.closePath();
+	  ctx.fill();
+	
+	  ctx.fillStyle = bodyGradient;
+	  ctx.strokeStyle = '#000';
+	  ctx.beginPath();
+	  ctx.ellipse(isLeft ? 2*this.w/9 - delta : -2*this.w/9 + delta, -this.h/2, this.w/6, this.h/4, 0, 0, Math.PI * 2);//nasone centrato
+	  ctx.fill();
+	  ctx.beginPath();
+	  ctx.ellipse(isLeft ? 2*this.w/9 - delta : -2*this.w/9 + delta, -this.h/2, this.w/6, this.h/4, 0, 
+		isLeft? 5 * Math.PI / 4 //225'
+				: Math.PI / 4, //45'
+		isLeft ? 11 * Math.PI / 4 //360+135'
+				: 5 * Math.PI / 3 //315'
+				);//nasone centrato
+	  ctx.stroke();	
+	}
+	
+	
+	
+	//zampette
+	let z1 = (this.x % 3);
+	let z2 = ((this.x + 1)% 3);
+	let z3 = ((this.x - 1) % 3);
+	this.drawZampetta(ctx, isLeft ? -5  -z1 :  5+z1   , isLeft ?   0:   0);//centro L
+	this.drawZampetta(ctx, isLeft ?  5  -z2 : -5+z2   , isLeft ?  10: -10);//avanti L
+	this.drawZampetta(ctx, isLeft ? -15 +z3 : 15-z3   , isLeft ? -20:  20);//dietro J
+	
+	/*
+	//debug
+	ctx.strokeStyle = '#fff';
+	ctx.beginPath();
+	ctx.strokeRect(-this.w/2, -this.h/2, this.w, this.h);
+	ctx.stroke();
+	*/
+	
+    ctx.restore();
+  }
+  
+  drawZampetta(ctx,x1,x2,inverted) {
+    ctx.beginPath();
+	ctx.moveTo(x1, 0);
+	ctx.lineTo(x1, 10);
+	if(this.onGround) ctx.lineTo(x2, 10);
+	else ctx.lineTo(x1, 20);
+	ctx.stroke();
+  }
+}
+
+class Ball {
+  constructor(){
+    this.x = 0; 
+	this.y = 0; 
+	this.r = 22; 
+	this.vx = 0; 
+	this.vy = 0; 
+	this.color = '#fff';
+	this.lastHitBy = null;   // 'left' o 'right'
+    this.hitCooldown = 0;    // in secondi
+  }
+  update(dt){
+    if(this.hitCooldown > 0) this.hitCooldown -= dt;
+    this.vy += GRAVITY_BALL * dt;
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+  }
+  
+  
+  draw(ctx) {
+    ctx.save(); 
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.x / 57);
+
+    //palla
+    ctx.beginPath(); 
+    ctx.fillStyle = this.color; 
+    ctx.strokeStyle = '#000';
+    ctx.arc(0, 0, this.r, 0, Math.PI * 2); 
+    ctx.fill(); 
+    ctx.stroke();
+	
+	//strisce
+	this.drawVolleyballSeams(ctx,this.r, '#ff0','#55f');
+	ctx.rotate(Math.PI/2);
+	this.drawVolleyballSeams(ctx,this.r, '#ff0','#fff');
+    
+    ctx.restore();
+  }
+
+  drawVolleyballSeams(ctx, r, col1, col2) {
+    const w = r * 1.7;
+    const h = r * 1;
+    const x0 = -w / 2;
+    const x1 =  w / 2;
+    const yTop = -h / 2;
+    const yBot =  h / 2;
+    const c = r * 0.5;
+    // centro
+    const wMid = r * 2; // più lunga del diametro
+    const x0Mid = -wMid / 2;
+    const x1Mid =  wMid / 2;
+    const yMid = 0;
+    
+  
+    ctx.strokeStyle = '#000';
+    
+    //parte alta
+    ctx.fillStyle = col1;
+    ctx.beginPath();
+    ctx.moveTo(x0, yTop);
+    ctx.bezierCurveTo(x0 + c, yTop - r * 0.5, x1 - c, yTop + r * 0.5, x1, yTop);
+    ctx.lineTo(x1Mid, yMid);
+    ctx.bezierCurveTo(x1Mid - c, yMid + r * 0.3, x0Mid + c, yMid - r * 0.3, x0Mid, yMid);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.fill();
+    
+    //parte bassa
+    ctx.fillStyle = col2;
+    ctx.beginPath();
+    ctx.moveTo(x0Mid, yMid);
+    ctx.bezierCurveTo(x0Mid + c, yMid - r * 0.3, x1Mid - c, yMid + r * 0.3, x1Mid, yMid);
+    ctx.lineTo(x1, yBot);
+    ctx.bezierCurveTo(x1 - c, yBot + r * 0.5, x0 + c, yBot - r * 0.5, x0, yBot);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.fill();
+  }
+}
+
+class Game {
+  constructor(canvas){
+    this.canvas = canvas; 
+	this.ctx = canvas.getContext('2d');
+    this.width = canvas.width; 
+	this.height = canvas.height;
+    this.input = new Input();
+    // playfield
+    this.groundY = this.height - GROUND_HEIGHT; 
+	this.netX = this.width/2; 
+	this.netTop = this.groundY - NET_HEIGHT;
+    // players
+    this.left = new Player(90, '#0f0', 0); 
+	this.right = new Player(this.width - 90, '#f00', 1);
+    this.ball = new Ball();
+    this.paused = false;
+    this.aiLeft = false; 
+	this.aiRight = true;
+    this.goalTo = MAX_POINTS; 
+	this.server = 0; // 0 left / 1 right
+    this.resetPoint(true);
+    // keys
+    this.controlsLeft = {left: 'KeyA', right:'KeyD', jump:'KeyW'};
+    this.controlsRight = {left: 'ArrowLeft', right:'ArrowRight', jump:'ArrowUp'};
+    this.lastTime = 0;
+    this.drawNet();
+	this.drawGround();
+	this.info = {msg:'', lastUpdate:null};
+  }
+
+  resetPoint(first=false){
+    // place players and ball on server side
+    this.left.x = 90; 
+	this.right.x = this.width-90;
+    this.left.y = this.groundY; 
+	this.right.y = this.groundY;
+    this.left.vx=this.left.vy=this.right.vx=this.right.vy=0;
+    // set ball above server
+    const s = this.server === 0 ? this.left : this.right;
+    this.ball.x = s.x + (this.server===0?40:-40);
+    this.ball.y = s.y - 180; 
+	//palla ferma
+	this.ball.vx = 0;
+	this.ball.vy = 0;
+	//this.ball.vx = (this.server===0? 60: -60); 
+	//this.ball.vy = -120;
+    this.paused = false;
+    if (first) this.left.score = 0, this.right.score = 0;
+  }
+
+  togglePause(){ 
+    this.paused = !this.paused; 
+  }
+
+  update(time){
+    if (this.paused) { this.lastTime = time; requestAnimationFrame(t=>this.update(t)); return; }
+    if (!this.lastTime) this.lastTime = time;
+    let dt = (time - this.lastTime) / 1000; 
+	if (dt>0.05) dt=0.05; // clamp
+    this.lastTime = time;
+
+    // update AI or player input
+    this.updatePlayers(dt);
+
+    // physics steps
+    this.ball.update(dt);
+    // gravity handled in ball
+
+    // player physics (simple)
+    [this.left,this.right].forEach(p=>{
+      // vertical
+      if (!p.onGround) {
+		p.vy += GRAVITY_PLAYERS * dt; // small gravity for players
+	  }
+	  
+      p.y += p.vy * dt;
+	  
+      if (p.y > this.groundY) { 
+		p.y = this.groundY; 
+		p.vy = 0; 
+		p.onGround = true; 
+	  }
+
+      p.x += p.vx * dt;
+      //p1 va da 0 a netX (320) 
+	  //p2 va da netX a width (640)
+	  //aggiungere meta larghezza rete (3/5px) e meta larghezza player (20/30px)
+      const minX = (p===this.left)? p.w/2 : this.netX + p.w/2 + NET_WIDTH/2;
+      const maxX = (p===this.left)? this.netX - p.w/2 - NET_WIDTH/2 : this.width - p.w/2;
+      if (p.x < minX) {
+		p.x = minX;
+		p.vx = 0;
+	  }
+      if (p.x > maxX) {
+	    p.x = maxX;
+		p.vx = 0;
+	  }
+    });
+
+    this.handleCollisions();
+
+    // scoring: ball hits ground outside bounce on same side -> point
+    if (this.ball.y + this.ball.r > this.groundY) {
+      // which side is ball?
+      const side = (this.ball.x < this.netX)? 0 : 1;
+      this.onPoint(side);
+    }
+
+    this.draw();
+    requestAnimationFrame(t=>this.update(t));
+  }
+
+  updatePlayers(dt){
+    // left
+    if (!this.aiLeft) this.left.update(dt, this.input, this.controlsLeft);
+    else this.aiControl(this.left, 0, dt);
+    if (!this.aiRight) this.right.update(dt, this.input, this.controlsRight);
+    else this.aiControl(this.right, 1, dt);
+  }
+
+  aiControl(player, side, dt){
+    // simple predictive AI: try to go under predicted landing x when ball is falling
+    const ball = this.ball;
+    // predict landing ignoring bounces, approximate time to ground
+    const g = GRAVITY_BALL; 
+	let t = 0;
+    if (ball.vy > 0) t = (this.groundY - ball.y) / ball.vy;
+    else {
+      // compute time until vy positive then to ground — rough
+      t = (Math.sqrt(Math.max(0, ball.vy*ball.vy + 2*g*(this.groundY - ball.y))) - ball.vy) / g;
+    }
+    if (!isFinite(t) || t < 0) t = 0.5;
+    let predictX = ball.x + ball.vx * t;
+    // reflect on side walls
+    if (predictX < 0) predictX = -predictX;
+    if (predictX > this.width) predictX = 2*this.width - predictX;
+
+    // choose dest near net or predicted position based on ball horizontal
+    let dest = predictX;
+	
+    // restrict dest to player's half
+    if (side === 0) dest = Math.min(dest, this.netX - 30);
+    else dest = Math.max(dest, this.netX + 30);
+
+    // move toward dest
+    const dx = dest - player.x;
+	
+	console.log(predictX+' '+dx);
+	
+    if (Math.abs(dx) > 6) {
+      if (dx < 0) { player.vx = Math.max(player.vx - 600*dt, -140); player.facing = -1; }
+      else { player.vx = Math.min(player.vx + 600*dt, 140); player.facing = 1; }
+    } else {
+      //player.vx *= 0.95;
+	  player.vx = 0;
+	  player.facing = 0;
+      // possibly jump if ball very close
+      if (Math.abs(ball.x - player.x) < 36 && ball.y > player.y - 140 && ball.vy > 0) {
+        if (player.onGround) { player.vy = -PLAYERS_ACCEL_Y; player.onGround = false; player.facing = 0; }
+      }
+    }
+  }
+
+  handleCollisions(){
+    const ball = this.ball;
+
+    // --- RETE ---
+    const postLeft  = this.netX - 3;
+    const postRight = this.netX + 3;
+
+	// collisione cima rete
+    const barTop = this.netTop;
+    const barBottom = this.netTop + NET_WIDTH;
+	if (ball.y + ball.r > barTop && ball.y - ball.r < barBottom) {
+        if (Math.abs(ball.x - this.netX) < NET_WIDTH) {
+            ball.y = barTop - ball.r;
+            ball.vy = -Math.abs(ball.vy) * 0.9;
+			
+			// reset tocchi
+			this.left.hitCount = 0;
+			this.right.hitCount = 0;
+        }
+    }
+	
+    // collisione verticale con palo
+    if (ball.y + ball.r > this.netTop) {
+        if (ball.x + ball.r > postLeft && ball.x - ball.r < postRight) {
+            if (ball.x < this.netX) ball.x = postLeft - ball.r;
+            else ball.x = postRight + ball.r;
+            ball.vx *= -0.9;
+			
+			// reset tocchi
+			this.left.hitCount = 0;
+			this.right.hitCount = 0;
+        }
+    }
+	
+    // --- PLAYERS: collisione rettangolo vs cerchio ---
+    [this.left, this.right].forEach(p => {
+		if(ball.hitCooldown > 0 && ball.lastHitBy === p) return;
+        // rettangolo player
+        const rx = p.x - p.w/2;
+        const ry = p.y - p.h;
+        const rw = p.w;
+        const rh = p.h;
+
+        // punto più vicino del rettangolo alla palla
+        const closestX = Math.max(rx, Math.min(ball.x, rx + rw));
+        const closestY = Math.max(ry, Math.min(ball.y, ry + rh));
+
+        const dx = ball.x - closestX;
+        const dy = ball.y - closestY;
+        const dist2 = dx*dx + dy*dy;
+
+        if (dist2 < ball.r*ball.r) {
+            const dist = Math.sqrt(dist2) || 0.0001;
+            const nx = dx / dist;
+            const ny = dy / dist;
+
+            // push-out
+            const overlap = ball.r - dist + 1; // +1 margine
+            ball.x += nx * overlap;
+            ball.y += ny * overlap;
+
+            // riflessione elastica
+            const vDotN = ball.vx*nx + ball.vy*ny;
+            ball.vx -= 2*vDotN*nx;
+            ball.vy -= 2*vDotN*ny;
+
+            // contributo velocità player
+            ball.vx += p.vx * 0.6;
+            ball.vy += p.vy * 0.6;
+
+			//spizzo!
+			const relativeX = (ball.x - p.x) / (p.w/2); // -1 = bordo sinistro, +1 = bordo destro
+			const maxBoost = 300; // massimo incremento di vx
+			ball.vx += relativeX * maxBoost;
+			// velocità minima
+			const minS = 80;
+			let s = Math.sqrt(ball.vx*ball.vx + ball.vy*ball.vy);
+			if (s < minS) {
+				ball.vx *= minS / s;
+				ball.vy *= minS / s;
+			}
+			
+			ball.lastHitBy = p;      // segna chi ha colpito
+			ball.hitCooldown = 0.3;  // 200 ms di "immunità"
+			
+			// contatore tocchi
+			p.hitCount++;
+			console.log('P'+(p.side+1)+' -> '+p.hitCount);
+			if (p.hitCount > MAX_HIT_COUNT) {
+				// punto all'avversario (come se p avesse fatto cadere la palla)
+				this.onPoint(p.side); 
+				return; // evita altri calcoli dopo il punto
+			}
+        }
+    });
+
+	/*
+    // --- FLOOR ---
+	if(ball.y + ball.r >= this.groundY) {
+		ball.y = this.groundY - ball.r;
+		ball.vy *= -0.6;
+	}*/
+
+    // --- CIELO ---
+    if(ball.y - ball.r < 0) { 
+        ball.y = ball.r + 1;
+        ball.vy = Math.abs(ball.vy) * 0.95; 
+    }
+
+    // --- MURI LATERALI ---
+    if (ball.x - ball.r < 0) { ball.x = ball.r + 1; ball.vx = Math.abs(ball.vx) * 0.95; }
+    if (ball.x + ball.r > this.width) { ball.x = this.width - ball.r - 1; ball.vx = -Math.abs(ball.vx) * 0.95; }
+
+    // --- LIMITA VELOCITÀ ---
+    const speed = Math.sqrt(ball.vx*ball.vx + ball.vy*ball.vy);
+    if (speed > MAX_SPEED_BALL) {
+        const scale = MAX_SPEED_BALL / speed;
+        ball.vx *= scale;
+        ball.vy *= scale;
+    }
+}
+
+
+  onPoint(sideHitGround){
+    // point is for opposite player
+    const winner = 1 - sideHitGround;
+    
+	// server won point
+    if (winner === 0) this.left.score++; 
+	else this.right.score++;
+	this.server = winner; // server becomes winner
+    
+	// win condition
+    const sLeft = this.left.score;
+	const sRight = this.right.score;
+    if ((sLeft >= this.goalTo || sRight >= this.goalTo) && Math.abs(sLeft - sRight) >= 2) {
+      this.info={msg:'GAME OVER - '+(sLeft>sRight?'P1':'P2')+' WINS!', lastUpdate:new Date()};
+	  this.drawInfo();
+	  this.paused = true;
+      playSound('fischio2');
+      return;
+    }
+	
+	// reset tocchi
+	this.left.hitCount = 0;
+	this.right.hitCount = 0;
+	
+    // next serve
+	this.info={msg:'POINT! SERVER: '+(this.server===0 ? 'P1' : 'P2'), lastUpdate:new Date()};
+	this.drawInfo();
+    
+	// place next point with server
+    this.resetPoint(false);
+	playSound('fischio1');
+  }
+  
+  draw(){
+    const ctx = this.ctx; 
+	ctx.clearRect(0,0,this.width,this.height);
+    // background
+    //ctx.fillStyle = '#6ea7d8'; 
+	//ctx.fillRect(0,0,this.width,this.height);
+    
+	// players & ball
+    this.left.draw(ctx); 
+	this.right.draw(ctx);
+    this.ball.draw(ctx);
+	
+	// net + ground
+	if(!bgcount) {
+		this.drawNet();
+		this.drawGround();
+	}
+	
+	// score
+	this.drawScore();	
+	
+	// info
+	let now = new Date();
+	if(this.info.lastUpdate && ((now - this.info.lastUpdate)< 1000)){
+		this.drawInfo();
+	}
+  }
+  
+  drawInfo() {
+    const ctx = this.ctx;
+    ctx.fillStyle = '#f80'; 
+	ctx.font = 'bold 18px monospace';
+
+    //misura dimensioni reali del testo
+    const textWidth = ctx.measureText(this.info.msg).width;
+	
+	//centra rispetto alla larghezza del canvas
+    const sx = (this.canvas.width - textWidth) / 2;
+    ctx.fillText(this.info.msg, sx, 50);
+	//ctx.strokeStyle = '#000';
+	//ctx.strokeText(this.info.msg, sx, 50);
+}
+
+  
+  drawScore() {
+    const ctx = this.ctx;
+	ctx.fillStyle = '#f80'; 
+	ctx.font = 'bold 18px monospace'; 
+	let p1s = this.left.score;
+	if(p1s < 10) p1s = '0'+p1s;
+	let p2s = this.right.score;
+	if(p2s < 10) p2s = '0'+p2s;
+	ctx.fillText(p1s + '   ' + p2s, 285, 18);
+	ctx.fillStyle = '#fff';
+	ctx.fillText(this.server===0?'<':'>', 316, 18);
+	
+  }
+
+  drawNet(){
+    const ctx = this.ctx;
+	// pole
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+	ctx.fillRect(this.netX-NET_WIDTH/2, this.netTop, NET_WIDTH, this.groundY - this.netTop + GROUND_HEIGHT);
+	// net
+	ctx.fillStyle = 'rgba(255,255,255,0.3)';
+	ctx.fillRect(this.netX-NET_WIDTH/2+2, this.netTop+2, NET_WIDTH-4, (this.groundY - this.netTop) / 2);
+	ctx.fillStyle = 'rgba(0,0,0,0.3)';
+	ctx.fillRect(this.netX-NET_WIDTH/2, this.netTop+4, NET_WIDTH, 2);
+	ctx.fillRect(this.netX-NET_WIDTH/2, this.netTop + (this.groundY - this.netTop) / 2 - 4, NET_WIDTH, 2);
+  }
+  
+  drawGround(){
+    const ctx = this.ctx;
+	// ground
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+	ctx.fillRect(0,this.groundY, this.width, this.height-this.groundY);
+  }
+}
+
+function resetGame() {
+	game.info={msg:'RESET', lastUpdate:new Date()};
+	game.drawInfo();
+	
+	game.resetPoint(true); 
+	game.lastTime=0; 
+	requestAnimationFrame(t=>game.update(t)); 
+}
+
+function pauseGame() {
+	game.info={msg:game.paused ? 'PLAY' : 'PAUSE', lastUpdate:new Date()};
+	game.drawInfo();
+	game.togglePause(); 
+}
+
+function cycleBackground() {
+    canvas.classList.remove('z1','z2','z3','z4','z5');// rimuove tutte le classi
+    if (bgcount < 5) {
+		canvas.classList.add('z' + (bgcount + 1));// aggiunge la nuova classe
+        bgcount++;
+    } else {
+        bgcount = 0; // reset
+    }
+}
+
+function toggleAiLeft() {
+	document.getElementById('aiLeft').click();
+}
+
+function toggleAiRight() {
+	document.getElementById('aiRight').click();
+}
+
+function toggleScanLines() {
+	scanLinesEnabled = !scanLinesEnabled;
+	if (scanLinesEnabled) document.getElementById('scanlines-overlay').style.display = 'block';
+	else document.getElementById('scanlines-overlay').style.display = 'none';
+}
+
+function stopMusic() {
+	if (!musicStarted) return;
+	const music = document.getElementById("bgMusic");
+	if (music) { music.pause(); musicStarted = false; }
+}
+
+function startMusic(fromBeginning = true) {
+	if (musicStarted) return;
+	const music = document.getElementById("bgMusic");
+	if (music) {
+	  music.volume = 0.5;
+	  if (fromBeginning) music.currentTime = 0;
+	  music.play().catch((e) => { console.warn("🔇 bgMusic bloccata:", e); });
+	  musicStarted = true;
+	}
+}
+
+function playSound(id, force = true) {
+	if (isMute) return;
+	const audio = document.getElementById(id);
+	if (!audio) return;//id non valido
+	if (!audio.paused && force) return;//gia in riproduzione
+	  
+	//ok, riproducilo dall'inizio
+	audio.currentTime = 0;
+    audio.play().catch((e) => {
+	  console.warn("Errore riproduzione audio:", e);
+	});
+}
+
+// UI
+document.getElementById('aiLeft').addEventListener('change', function() { game.aiLeft = this.checked; });
+document.getElementById('aiRight').addEventListener('change', function() { game.aiRight = this.checked; });
+
+// ascolta i tasti Z/R/P/1/2/etc...
+window.addEventListener('keydown', e => {
+    if (e.code === 'KeyZ') cycleBackground();
+	if (e.code === 'KeyR') resetGame();
+	if (e.code === 'KeyP') pauseGame();
+	if (e.code === 'Digit1') toggleAiLeft();
+	if (e.code === 'Digit2') toggleAiRight();
+	if (e.code === 'KeyX') toggleScanLines();
+	if (e.code === 'KeyM') { if(musicStarted) stopMusic(); else startMusic(); }
+	if (e.code === 'KeyS') { isMute = !isMute; }
+	console.log(e.code);
+});
+
+// bootstrap
+const canvas = document.getElementById('game'); 
+const game = new Game(canvas);
+
+// start loop once to show canvas
+canvas.focus(); 
+requestAnimationFrame(t=>game.update(t));
+
+
+</script>
+</body>
+</html>
