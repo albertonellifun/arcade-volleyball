@@ -21,7 +21,7 @@
 	padding:16px;
   }
   canvas{
-    background:#3a6ea5;
+    background:#47a;
 	border-radius:8px;
   }
   .ui{
@@ -535,36 +535,44 @@ class Game {
   handleCollisions(){
     const ball = this.ball;
 
-    // --- RETE ---
-    const postLeft  = this.netX - 3;
-    const postRight = this.netX + 3;
-
-	// collisione cima rete
-    const barTop = this.netTop;
-    const barBottom = this.netTop + NET_WIDTH;
-	if (ball.y + ball.r > barTop && ball.y - ball.r < barBottom) {
-        if (Math.abs(ball.x - this.netX) < NET_WIDTH) {
-            ball.y = barTop - ball.r;
-            ball.vy = -Math.abs(ball.vy) * 0.9;
-			
-			// reset tocchi
-			this.left.hitCount = 0;
-			this.right.hitCount = 0;
-        }
-    }
+    //collisione con rete-muro
+	const netLeft  = this.netX - NET_WIDTH/2;
+    const netRight = this.netX + NET_WIDTH/2;
+    const netTop = this.netTop;
+    const netBottom = this.netTop + NET_HEIGHT;
 	
-    // collisione verticale con palo
-    if (ball.y + ball.r > this.netTop) {
-        if (ball.x + ball.r > postLeft && ball.x - ball.r < postRight) {
-            if (ball.x < this.netX) ball.x = postLeft - ball.r;
-            else ball.x = postRight + ball.r;
-            ball.vx *= -0.9;
-			
-			// reset tocchi
-			this.left.hitCount = 0;
-			this.right.hitCount = 0;
-        }
-    }
+	//1 trova il punto piu vicino del muro alla palla
+    const nearestX = Math.max(netLeft, Math.min(ball.x, netRight));
+    const nearestY = Math.max(netTop, Math.min(ball.y, netBottom));
+
+    //2 calcola distanza tra palla e punto piu vicino
+    const dx = ball.x - nearestX;
+    const dy = ball.y - nearestY;
+    const distSq = dx*dx + dy*dy;
+
+    //3 collisione?
+    if (distSq <= ball.r * ball.r) {
+		const dist = Math.sqrt(distSq) || 0.0001;  // evita divisione zero
+		const overlap = ball.r - dist;
+		//4 NORMALE DELLA COLLISIONE (direzione da muro -> palla)
+		const nx = dx / dist;
+		const ny = dy / dist;
+		//5 spingi fuori la palla (no penetrazione)
+		ball.x += nx * overlap;
+		ball.y += ny * overlap;
+		//6 calcolo rimbalzo (riflessione vettoriale perfetta)
+		const dot = ball.vx * nx + ball.vy * ny;
+		ball.vx -= 2 * dot * nx;
+		ball.vy -= 2 * dot * ny;
+		//7 aggiungi perdita di energia
+		ball.vx *= 0.95;
+		ball.vy *= 0.95;
+		
+		// reset tocchi
+		this.left.hitCount = 0;
+		this.right.hitCount = 0;
+	}
+	
 	
     // --- PLAYERS: collisione rettangolo vs cerchio ---
     [this.left, this.right].forEach(p => {
@@ -692,7 +700,7 @@ class Game {
     const ctx = this.ctx; 
 	ctx.clearRect(0,0,this.width,this.height);
     // background
-    //ctx.fillStyle = '#6ea7d8'; 
+    //ctx.fillStyle = '#7ad'; 
 	//ctx.fillRect(0,0,this.width,this.height);
     
 	// players & ball
