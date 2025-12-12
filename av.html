@@ -81,6 +81,18 @@
 		background: url(zorlim-bg-5x.png)  no-repeat top left;
 		background-size: 640px 400px;
 	}
+	#viewport.z6{
+		background: url(zorlim-bg-6x.png)  no-repeat top left;
+		background-size: 640px 400px;
+	}
+	#viewport.z7{
+		background: url(zorlim-bg-7x.png)  no-repeat top left;
+		background-size: 640px 400px;
+	}
+	#viewport.z8{
+		background: url(zorlim-bg-8x.png)  no-repeat top left;
+		background-size: 640px 400px;
+	}
 
 	#win, #lose, #pause {
 		display: block;
@@ -454,14 +466,17 @@ function onKey(e) {
 		break;
 		
 		case 90: // z = background zorlim
-			$('#viewport').removeClass('z1').removeClass('z2').removeClass('z3').removeClass('z4').removeClass('z5');
+			$('#viewport').removeClass('z1').removeClass('z2').removeClass('z3').removeClass('z4').removeClass('z5').removeClass('z6').removeClass('z7').removeClass('z8');
 			switch(bgcount){
 				case 0: $('#viewport').addClass('z1'); bgcount++; break;
 				case 1: $('#viewport').addClass('z2'); bgcount++; break;
 				case 2: $('#viewport').addClass('z3'); bgcount++; break;
 				case 3: $('#viewport').addClass('z4'); bgcount++; break;
 				case 4: $('#viewport').addClass('z5'); bgcount++; break;
-				case 5: bgcount = 0; break;
+				case 5: $('#viewport').addClass('z6'); bgcount++; break;
+				case 6: $('#viewport').addClass('z7'); bgcount++; break;
+				case 7: $('#viewport').addClass('z8'); bgcount++; break;
+				case 8: bgcount = 0; break;
 			}
 		break;
 		

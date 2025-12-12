@@ -63,6 +63,18 @@
   	background: url(zorlim-bg-5x.png)  no-repeat top left;
   	background-size: 640px 400px;
   }
+  #game.z6{
+  	background: url(zorlim-bg-6x.png)  no-repeat top left;
+  	background-size: 640px 400px;
+  }
+  #game.z7{
+  	background: url(zorlim-bg-7x.png)  no-repeat top left;
+  	background-size: 640px 400px;
+  }
+  #game.z8{
+  	background: url(zorlim-bg-8x.png)  no-repeat top left;
+  	background-size: 640px 400px;
+  }
   #scanlines-overlay {
     position: absolute;
     top: 0;
@@ -186,7 +198,14 @@ class Player {
   }
   draw(ctx){
 	let delta = 5;//non centrato causa nasone
-	let isLeft = this.facing === 1 || this.facing === 0 && this.side === 0;
+	
+	//guarda a sinistra, centrato o destra a seconda della direzione del movimento
+	//let isLeft = this.facing === 1 || (this.facing === 0 && this.side === 0);
+	
+	//guarda a sinistra o centrato, mai dal lato opposto
+	let isLeft = this.side === 0;
+	if (isLeft && this.facing===-1) this.facing=0;
+	if (!isLeft && this.facing===1) this.facing=0;
 	
 	const bodyGradient = ctx.createRadialGradient(
 		(isLeft ? delta * 2 : -delta * 2),// x centro interno
@@ -489,6 +508,71 @@ class Game {
     else this.aiControl(this.right, 1, dt);
   }
 
+
+  aiControl(player, side, dt) {
+    const ball = this.ball;
+
+    // --- PREDIZIONE SEMPLIFICATA ---
+    let t = 0.35;
+    let predictX = ball.x + ball.vx * t;
+    predictX = Math.max(0, Math.min(predictX, this.width));
+
+    // --- DIFESA O ATTACCO ---
+    const onMySide = side === 0 
+        ? (ball.x < this.netX)
+        : (ball.x > this.netX);
+
+    const ballGoingDown = ball.vy > 0;
+    const isAttacking = onMySide && ballGoingDown;
+
+    let dest;
+
+    if (isAttacking) {
+        // colpisci la palla DI LATO
+        const offset = side === 0 ? -28 : +28;
+        dest = ball.x + offset;
+
+        // evita di stare troppo vicino alla rete su attacco
+        if (side === 0) dest = Math.min(dest, this.netX - 40);
+        else dest = Math.max(dest, this.netX + 40);
+
+    } else {
+        // difesa: vai dove cadrà
+        dest = predictX;
+    }
+
+    // limita all’area del giocatore
+    if (side === 0) dest = Math.min(dest, this.netX - 20);
+    else dest = Math.max(dest, this.netX + 20);
+
+    // --- MOVIMENTO ---
+    const dx = dest - player.x;
+
+    if (Math.abs(dx) > 6) {
+        player.vx += Math.sign(dx) * 600 * dt;
+    } else {
+        player.vx *= 0.75;
+    }
+
+    player.vx = Math.max(-MAX_SPEED_PLAYERS, Math.min(player.vx, MAX_SPEED_PLAYERS));
+
+    // facing
+    player.facing = Math.abs(player.vx) < 2 ? 0 : (player.vx > 0 ? 1 : -1);
+
+    // --- JUMP PER COLPIRE ---
+    const closeX = Math.abs(ball.x - player.x) <= ball.r * 1.5;
+    const closeY = ball.y > player.y - 130;
+    
+
+    if (closeX && closeY && ballGoingDown && player.onGround) {
+        player.vy = -PLAYERS_ACCEL_Y;
+        player.onGround = false;
+    }
+  }
+
+
+
+  /*
   aiControl(player, side, dt){
     // simple predictive AI: try to go under predicted landing x when ball is falling
     const ball = this.ball;
@@ -531,6 +615,7 @@ class Game {
       }
     }
   }
+  */
 
   handleCollisions(){
     const ball = this.ball;
@@ -709,7 +794,7 @@ class Game {
     this.ball.draw(ctx);
 	
 	// net + ground
-	if(!bgcount) {
+	if(!bgcount || bgcount === 8) {
 		this.drawNet();
 		this.drawGround();
 	}
@@ -757,10 +842,10 @@ class Game {
   drawNet(){
     const ctx = this.ctx;
 	// pole
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
 	ctx.fillRect(this.netX-NET_WIDTH/2, this.netTop, NET_WIDTH, this.groundY - this.netTop + GROUND_HEIGHT);
 	// net
-	ctx.fillStyle = 'rgba(255,255,255,0.3)';
+	ctx.fillStyle = 'rgba(255,255,255,0.5)';
 	ctx.fillRect(this.netX-NET_WIDTH/2+2, this.netTop+2, NET_WIDTH-4, (this.groundY - this.netTop) / 2);
 	ctx.fillStyle = 'rgba(0,0,0,0.3)';
 	ctx.fillRect(this.netX-NET_WIDTH/2, this.netTop+4, NET_WIDTH, 2);
@@ -791,8 +876,8 @@ function pauseGame() {
 }
 
 function cycleBackground() {
-    canvas.classList.remove('z1','z2','z3','z4','z5');// rimuove tutte le classi
-    if (bgcount < 5) {
+    canvas.classList.remove('z1','z2','z3','z4','z5','z6','z7','z8');// rimuove tutte le classi
+    if (bgcount < 8) {
 		canvas.classList.add('z' + (bgcount + 1));// aggiunge la nuova classe
         bgcount++;
     } else {
